@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: paykotha
+      POSTGRES_PASSWORD: paykotha
+      POSTGRES_DB: paykotha
+    ports:
+      - "5432:5432"
+    volumes:
+      - paykotha_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paykotha -d paykotha"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      SEED_DEMO: "true"
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg2://paykotha:paykotha@db:5432/paykotha
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: change-me-in-production-paykotha-secret-key-32b
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000"
+      RAIL_MODE: sandbox
+      ADMIN_BOOTSTRAP_PHONE: "01999999999"
+      ADMIN_BOOTSTRAP_PIN: "999999"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+
+volumes:
+  paykotha_pg:
